@@ -1,0 +1,27 @@
+server:
+  port: 10086
+logging:
+  level:
+    xyz.thuray.geniuslens: debug
+    org.mybatis: debug
+spring:
+  datasource:
+    url: jdbc:postgresql://10.10.10.145:5432/genius_lens
+    username: seal
+    password: 0nlin@seal
+    driver-class-name: org.postgresql.Driver
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    bootstrap-servers: 10.10.10.145:9092
+  data:
+    redis:
+      host: 10.10.10.145
+      port: 6379
+      database: 0
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+cache:
+  impl: local

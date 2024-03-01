@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.thuray.geniuslens.server.mapper.FunctionMapper">
+    <select id="selectAll" resultType="xyz.thuray.geniuslens.server.data.po.FunctionPO">
+        SELECT *
+        FROM function
+        WHERE is_deleted = FALSE
+    </select>
+    <select id="selectByCategoryId" resultType="xyz.thuray.geniuslens.server.data.po.FunctionPO">
+        SELECT *
+        FROM function
+        WHERE category_id = #{categoryId}
+          AND is_deleted = FALSE
+    </select>
+    <select id="selectByCategoryName" resultType="xyz.thuray.geniuslens.server.data.po.FunctionPO">
+        SELECT f.*
+        FROM function f
+                 RIGHT JOIN category c ON f.category_id = c.id
+        WHERE c.name = #{name}
+          AND c.parent_id != 0
+          AND f.is_deleted = FALSE
+    </select>
+    <select id="selectRecommend" resultType="xyz.thuray.geniuslens.server.data.po.FunctionPO">
+        SELECT *
+        FROM function
+        WHERE is_deleted = FALSE
+        LIMIT 20
+    </select>
+    <select id="selectByName" resultType="xyz.thuray.geniuslens.server.data.po.FunctionPO">
+        SELECT *
+        FROM function
+        WHERE name = #{name}
+          AND is_deleted = FALSE
+        LIMIT 1
+    </select>
+</mapper>

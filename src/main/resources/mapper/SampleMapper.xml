@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.thuray.geniuslens.server.mapper.SampleMapper">
+    <insert id="insertBatch"
+            useGeneratedKeys="true"
+            keyProperty="id"
+            keyColumn="id">
+        INSERT INTO sample (function_id, name, type, url, created_by, updated_by)
+        VALUES
+        <foreach collection="list" item="item" index="index" separator=",">
+            (#{item.functionId}, #{item.name}, #{item.type}, #{item.url}, #{item.createdBy}, #{item.updatedBy})
+        </foreach>
+    </insert>
+    <select id="selectAllByFunctionId" resultType="xyz.thuray.geniuslens.server.data.po.SamplePO">
+        SELECT * FROM sample WHERE function_id = #{functionId} OR function_id = 0
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+        AND is_deleted = FALSE
+
+    </select>
+</mapper>

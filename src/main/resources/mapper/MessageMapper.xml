@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.thuray.geniuslens.server.mapper.MessageMapper">
+
+    <select id="selectMessageList" resultType="xyz.thuray.geniuslens.server.data.po.MessagePO">
+        SELECT * FROM message
+        WHERE is_deleted = FALSE AND status = 0 AND receiver_id = #{userId}
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+        ORDER BY updated_at DESC
+
+    </select>
+</mapper>
