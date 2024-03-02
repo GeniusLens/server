@@ -173,3 +173,22 @@ CREATE TABLE message
     updated_by  BIGINT       NOT NULL,
     is_deleted  BOOL         NOT NULL DEFAULT FALSE
 );
+
+-- 任务
+DROP TABLE IF EXISTS task;
+
+CREATE TABLE task
+(
+    task_id     VARCHAR(255) NOT NULL,
+    status      int          NOT NULL DEFAULT 0,
+    function_id BIGINT       NOT NULL,
+    user_id     BIGINT       NOT NULL,
+    message_id  BIGINT       NOT NULL,
+
+    id          BIGSERIAL    NOT NULL PRIMARY KEY,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by  BIGINT       NOT NULL,
+    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by  BIGINT       NOT NULL,
+    is_deleted  BOOL         NOT NULL DEFAULT FALSE
+);

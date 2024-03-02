@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import xyz.thuray.geniuslens.server.data.enums.MessageType;
 import xyz.thuray.geniuslens.server.data.po.MessagePO;
 import xyz.thuray.geniuslens.server.util.TimeFormatUtil;
 
@@ -28,14 +29,16 @@ public class MessageVO {
     }
 
     public static MessageVO fromPO(MessagePO po) {
-        return MessageVO.builder()
+        MessageVO vo = MessageVO.builder()
                 .id(po.getId())
                 .message(po.getMessage())
-//                .sender(po.getSender())
-//                .senderAvatar(po.getSenderAvatar())
                 .time(TimeFormatUtil.format(po.getUpdatedAt()))
                 .type(po.getType())
                 .status(po.getStatus())
                 .build();
+        if (po.getType() == MessageType.SYSTEM.getValue()) {
+            vo.setSender("系统消息");
+        }
+        return vo;
     }
 }

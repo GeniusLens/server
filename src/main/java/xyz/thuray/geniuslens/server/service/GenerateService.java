@@ -14,18 +14,21 @@ import retrofit2.Response;
 import xyz.thuray.geniuslens.server.data.context.InferenceCtx;
 import xyz.thuray.geniuslens.server.data.dto.*;
 import xyz.thuray.geniuslens.server.data.enums.InferenceStatus;
+import xyz.thuray.geniuslens.server.data.enums.MessageSender;
+import xyz.thuray.geniuslens.server.data.enums.MessageStatus;
+import xyz.thuray.geniuslens.server.data.enums.MessageType;
 import xyz.thuray.geniuslens.server.data.po.*;
 import xyz.thuray.geniuslens.server.data.vo.Result;
 import xyz.thuray.geniuslens.server.mapper.*;
+import xyz.thuray.geniuslens.server.util.SHAUtil;
 import xyz.thuray.geniuslens.server.util.UserContext;
+import xyz.thuray.geniuslens.server.util.UUIDUtil;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-import static org.apache.commons.codec.digest.DigestUtils.md5;
+import static org.apache.commons.codec.digest.DigestUtils.*;
 
 @Service
 @Slf4j
@@ -40,6 +43,8 @@ public class GenerateService {
     private SampleMapper sampleMapper;
     @Resource
     private MessageMapper messageMapper;
+    @Resource
+    private TaskMapper taskMapper;
     @Resource
     private InferenceService inferenceService;
     @Resource
@@ -171,8 +176,8 @@ public class GenerateService {
         return Result.success();
     }
 
-    public Result<?> createInference(InferenceParamDTO dto) {
-        log.info("createInference: {}", dto);
+    public Result<?> createInference(TaskParamDTO dto) {
+        log.info("Start inference: {}", dto);
         FunctionPO function = functionMapper.selectByName(dto.getFunction());
 //        if (function == null) {
 //            return Result.fail("功能不存在");
@@ -181,69 +186,146 @@ public class GenerateService {
 //        if (loraList.size() != dto.getLoraIds().size()) {
 //            return Result.fail("Lora不存在");
 //        }
-        String taskId = UUID.randomUUID().toString();
-        taskId = md5(taskId).toString();
-        MessagePO message = InferenceParamDTO.toMessage(dto, UserContext.getUserId());
-        log.info("createInference: {}", message);
-        try {
-            messageMapper.insert(message);
-        } catch (Exception e) {
-            log.error("createInference error", e);
-            return Result.fail("创建失败: " + e.getMessage());
-        }
-        InferenceCtx ctx = InferenceCtx.builder()
-                .taskId(taskId)
-                .status(InferenceStatus.PENDING)
-                .function(function)
-                .loras(loraList)
-                .sourceImages(dto.getSourceImages())
-                .message(message)
-                .build();
-        log.info("createInference: {}", ctx);
 
-        CompletableFuture<SendResult<String, InferenceCtx>> future = kafkaTemplate.send("inference", ctx);
+        // 初始化Task
+        InferenceCtx ctx = initTask(function, loraList, dto);
+
+        // 发送kafka消息
+        CompletableFuture<SendResult<String, InferenceCtx>> future = kafkaTemplate.send("inference", ctx.getTask().getTaskId(), ctx);
         future.whenComplete((result, ex) -> {
             if (ex != null) {
-                log.error("send kafka error", ex);
+                log.error("Inference {} send kafka error: {}", ctx.getTask().getTaskId(), ex.getMessage());
             } else {
-                log.info("send kafka success");
+                log.info("Inference {} send kafka success: {}", ctx.getTask().getTaskId(), result.getRecordMetadata());
             }
         });
 
-        return Result.success();
+        return Result.success(ctx.getTask());
     }
 
     @KafkaListener(topics = {"inference"}, groupId = "group")
     public void consumeMessage(ConsumerRecord<String, String> record) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
+        log.info("消费者消费topic:{} partition:{}的消息 -> {}", record.topic(), record.partition(), record.value());
+
+        // 解析消息
+        InferenceCtx ctx;
         try {
-            InferenceCtx ctx = objectMapper.readValue(record.value(), InferenceCtx.class);
-            log.info("消费者消费topic:{} partition:{}的消息 -> {}", record.topic(), record.partition(), ctx.toString());
-            MessagePO message = ctx.getMessage();
-            message.setMessage(ctx.getTaskId() + "开始推理");
-            message.setStatus(1);
-            messageMapper.updateById(message);
-
-
-            Response<Result> response;
-            LocalDateTime start = LocalDateTime.now();
-            try {
-                response = inferenceService.singleLoraInfer(SingleLora.demo());
-            } catch (Exception e) {
-                log.error("推理失败:{}", e.getMessage());
-                return;
-            }
-            LocalDateTime end = LocalDateTime.now();
-            log.info("response: {}", response);
-            log.info("推理耗时:{}", end.minusSeconds(start.getSecond()));
-            log.info("推理结果:{}", response.body());
-
-            message.setMessage(ctx.getTaskId() + "推理完成");
-            message.setStatus(2);
-            messageMapper.updateById(message);
+            ctx = objectMapper.readValue(record.value(), InferenceCtx.class);
         } catch (JsonProcessingException e) {
-            log.error("消息消费失败:{}", e.getMessage());
+            log.error("Inference consumeMessage error", e);
+            return;
         }
+
+        // 更新任务状态
+        updateTaskStatus(ctx, InferenceStatus.PROCESSING);
+
+        // 推理
+        Response<Result> response;
+        LocalDateTime start = LocalDateTime.now();
+        try {
+            response = inferenceService.singleLoraInfer(SingleLoraDTO.demo());
+        } catch (Exception e) {
+            log.error("推理失败:{}", e.getMessage());
+            // 更新任务状态
+            updateTaskStatus(ctx, InferenceStatus.FAILED);
+            return;
+        }
+        LocalDateTime end = LocalDateTime.now();
+        log.debug("response: {}", response);
+        log.debug("推理耗时:{}", end.minusSeconds(start.getSecond()));
+        log.debug("推理结果:{}", response.body());
+
+        // 更新任务状态
+        updateTaskStatus(ctx, InferenceStatus.FINISHED);
+        log.info("Inference finished: {}", ctx.getTask().getTaskId());
+    }
+
+    private InferenceCtx initTask(FunctionPO function, List<LoraPO> loraList, TaskParamDTO dto) {
+        // 生成taskId
+        String taskId = UUIDUtil.generate();
+        taskId = SHAUtil.MD5(taskId);
+        log.info("Initializing task: {}", taskId);
+
+        // 生成message
+        MessagePO message = MessagePO.builder()
+                .message(taskId + "已创建，请等待处理")
+                .senderId(MessageSender.SYSTEM.getValue())
+                .receiverId(UserContext.getUserId())
+                .type(MessageType.SYSTEM.getValue())
+                .build();
+        try {
+            messageMapper.insert(message);
+        } catch (Exception e) {
+            log.error("initTask error", e);
+        }
+        log.debug("initTask message: {}", message);
+
+        // 生成Task
+        TaskPO task = TaskPO.builder()
+                .taskId(taskId)
+                .status(InferenceStatus.PENDING.getValue())
+                // TODO: 回头得加上functionId
+                // .functionId(function.getId())
+                .userId(UserContext.getUserId())
+                .messageId(message.getId())
+                .build();
+        try {
+            // 保存Task
+            taskMapper.insert(task);
+        } catch (Exception e) {
+            log.error("initTask error", e);
+        }
+        log.debug("initTask task: {}", task);
+
+        InferenceCtx ctx = InferenceCtx.builder()
+                .task(task)
+                .status(InferenceStatus.PENDING)
+                .function(function)
+                .message(message)
+                .loras(loraList)
+                .sourceImages(dto.getSourceImages())
+                .build();
+
+        log.info("initTask: {}", ctx);
+        return ctx;
+    }
+
+    private void updateTaskStatus(InferenceCtx ctx, InferenceStatus status) {
+        // 更新ctx状态
+        ctx.setStatus(status);
+
+        // 处理Task状态
+        TaskPO task = ctx.getTask();
+        task.setStatus(status.getValue());
+        taskMapper.updateById(task);
+        // if (InferenceStatus.FINISHED.equals(status) || InferenceStatus.FAILED.equals(status)) {
+        //     task.setDeleted(true);
+        //     taskMapper.updateById(task);
+        // }
+
+        // 更新Message
+        MessagePO message = ctx.getMessage();
+        message.setStatus(status.getValue());
+        switch (status) {
+            case PENDING:
+                message.setMessage(task.getTaskId() + "等待推理");
+                break;
+            case PROCESSING:
+                message.setMessage(task.getTaskId() + "开始推理");
+                break;
+            case FINISHED:
+                message.setMessage(task.getTaskId() + "推理完成");
+                break;
+            case FAILED:
+                message.setMessage(task.getTaskId() + "推理失败");
+                break;
+        }
+        // 将消息状态改为已读
+        if (Objects.equals(MessageStatus.UNREAD.getValue(), message.getStatus())) {
+            message.setStatus(MessageStatus.READ.getValue());
+        }
+        messageMapper.updateById(message);
     }
 }
