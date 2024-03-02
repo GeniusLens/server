@@ -192,3 +192,24 @@ CREATE TABLE task
     updated_by  BIGINT       NOT NULL,
     is_deleted  BOOL         NOT NULL DEFAULT FALSE
 );
+
+-- 动态
+DROP TABLE IF EXISTS post;
+
+CREATE TABLE post
+(
+    user_id     BIGINT       NOT NULL,
+    function_id BIGINT       NOT NULL,
+    title       VARCHAR(255) NOT NULL,
+    content     VARCHAR(255) NOT NULL,
+    images      VARCHAR(255) NULL,
+    like_count  int          NOT NULL DEFAULT 0,
+
+
+    id          BIGSERIAL    NOT NULL PRIMARY KEY,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by  BIGINT       NOT NULL,
+    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by  BIGINT       NOT NULL,
+    is_deleted  BOOL         NOT NULL DEFAULT FALSE
+);

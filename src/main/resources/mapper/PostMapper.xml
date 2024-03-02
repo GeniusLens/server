@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.thuray.geniuslens.server.mapper.PostMapper">
+    <select id="selectAll" resultType="xyz.thuray.geniuslens.server.data.vo.PostVO">
+        SELECT p.*, u.nickname AS username, u.avatar AS userAvatar
+        FROM post p
+                 INNER JOIN "user" u
+                            ON p.user_id = u.id
+        WHERE p.is_deleted = FALSE
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>
