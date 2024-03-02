@@ -22,4 +22,8 @@ public class ThreadPoolManager {
     public Executor getTaskExecutor() {
         return taskExecutor;
     }
+
+    public void execute(Runnable task) {
+        taskExecutor.execute(task);
+    }
 }

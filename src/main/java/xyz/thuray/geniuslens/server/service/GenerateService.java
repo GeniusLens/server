@@ -20,15 +20,12 @@ import xyz.thuray.geniuslens.server.data.enums.MessageType;
 import xyz.thuray.geniuslens.server.data.po.*;
 import xyz.thuray.geniuslens.server.data.vo.Result;
 import xyz.thuray.geniuslens.server.mapper.*;
-import xyz.thuray.geniuslens.server.util.SHAUtil;
-import xyz.thuray.geniuslens.server.util.UserContext;
-import xyz.thuray.geniuslens.server.util.UUIDUtil;
+import xyz.thuray.geniuslens.server.util.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-
-import static org.apache.commons.codec.digest.DigestUtils.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @Slf4j
@@ -49,6 +46,10 @@ public class GenerateService {
     private InferenceService inferenceService;
     @Resource
     private KafkaTemplate<String, InferenceCtx> kafkaTemplate;
+    @Resource
+    private LockUtil lockUtil;
+    @Resource
+    private ThreadPoolManager threadPoolManager;
 
 
     public Result<?> createCategory(CategoryParamDTO param) {
@@ -203,7 +204,7 @@ public class GenerateService {
         return Result.success(ctx.getTask());
     }
 
-    @KafkaListener(topics = {"inference"}, groupId = "group")
+    @KafkaListener(topics = {"inference"}, groupId = "group1")
     public void consumeMessage(ConsumerRecord<String, String> record) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
@@ -224,10 +225,35 @@ public class GenerateService {
         // 推理
         Response<Result> response;
         LocalDateTime start = LocalDateTime.now();
+        // 等待获取锁
+        log.debug("等待获取锁");
+        Timer timer = new Timer();
+        AtomicInteger cnt = new AtomicInteger(0);
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (!lockUtil.lock("inference", "inference")) {
+                    cnt.getAndIncrement();
+                    log.debug("等待获取锁:{}", cnt);
+                    if (cnt.get() > 100) {
+                        log.error("获取锁超时");
+                        cnt.set(0);
+                    }
+                } else {
+                    log.debug("获取到锁");
+                    timer.cancel();
+                }
+            }
+        }, 0, 1000);
+        log.debug("获取到锁");
         try {
             response = inferenceService.singleLoraInfer(SingleLoraDTO.demo());
         } catch (Exception e) {
             log.error("推理失败:{}", e.getMessage());
+            // 释放锁
+            if (!lockUtil.unlock("inference", "inference")) {
+                log.error("释放锁失败");
+            }
             // 更新任务状态
             updateTaskStatus(ctx, InferenceStatus.FAILED);
             return;
@@ -236,6 +262,11 @@ public class GenerateService {
         log.debug("response: {}", response);
         log.debug("推理耗时:{}", end.minusSeconds(start.getSecond()));
         log.debug("推理结果:{}", response.body());
+
+        // 释放锁
+        if (!lockUtil.unlock("inference", "inference")) {
+            log.error("释放锁失败");
+        }
 
         // 更新任务状态
         updateTaskStatus(ctx, InferenceStatus.FINISHED);
@@ -267,7 +298,7 @@ public class GenerateService {
                 .taskId(taskId)
                 .status(InferenceStatus.PENDING.getValue())
                 // TODO: 回头得加上functionId
-                // .functionId(function.getId())
+                .functionId(0L)
                 .userId(UserContext.getUserId())
                 .messageId(message.getId())
                 .build();
@@ -328,4 +359,5 @@ public class GenerateService {
         }
         messageMapper.updateById(message);
     }
+
 }
