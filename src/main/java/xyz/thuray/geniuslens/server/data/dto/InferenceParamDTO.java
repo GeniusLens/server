@@ -17,7 +17,7 @@ public class InferenceParamDTO {
                 .message(dto.getFunction() + "正在等待推理")
                 .senderId(0L)
                 .receiverId(userId)
-                .type(0)
+                .type(3)
                 .build();
     }
 }

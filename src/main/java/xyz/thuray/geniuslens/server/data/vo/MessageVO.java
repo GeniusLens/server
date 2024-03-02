@@ -21,6 +21,7 @@ public class MessageVO {
     private String senderAvatar;
     private String time;
     private Integer type;
+    private Integer status;
 
     public static List<MessageVO> fromPO(List<MessagePO> pos) {
         return pos.stream().map(MessageVO::fromPO).collect(Collectors.toList());
@@ -34,6 +35,7 @@ public class MessageVO {
 //                .senderAvatar(po.getSenderAvatar())
                 .time(TimeFormatUtil.format(po.getUpdatedAt()))
                 .type(po.getType())
+                .status(po.getStatus())
                 .build();
     }
 }

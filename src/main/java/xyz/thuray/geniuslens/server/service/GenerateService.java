@@ -26,6 +26,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+import static org.apache.commons.codec.digest.DigestUtils.md5;
+
 @Service
 @Slf4j
 public class GenerateService {
@@ -181,6 +183,7 @@ public class GenerateService {
 //            return Result.fail("Lora不存在");
 //        }
         String taskId = UUID.randomUUID().toString();
+        taskId = md5(taskId).toString();
         MessagePO message = InferenceParamDTO.toMessage(dto, UserContext.getUserId());
         log.info("createInference: {}", message);
         try {
@@ -236,6 +239,10 @@ public class GenerateService {
             log.info("response: {}", response);
             log.info("推理耗时:{}", end.minusSeconds(start.getSecond()));
             log.info("推理结果:{}", response.body());
+
+            message.setMessage(ctx.getTaskId() + "推理完成");
+            message.setStatus(2);
+            messageMapper.updateById(message);
         } catch (JsonProcessingException e) {
             log.error("消息消费失败:{}", e.getMessage());
         }

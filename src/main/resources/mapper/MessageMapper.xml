@@ -5,7 +5,7 @@
 
     <select id="selectMessageList" resultType="xyz.thuray.geniuslens.server.data.po.MessagePO">
         SELECT * FROM message
-        WHERE is_deleted = FALSE AND status = 0 AND receiver_id = #{userId}
+        WHERE is_deleted = FALSE AND receiver_id = #{userId}
         <if test="type != null">
             AND type = #{type}
         </if>
