@@ -1,7 +1,6 @@
 package xyz.thuray.geniuslens.server.data.po;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.databind.ser.Serializers;
 import lombok.*;
 
 @Data

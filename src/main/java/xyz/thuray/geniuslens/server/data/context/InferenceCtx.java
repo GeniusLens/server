@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import xyz.thuray.geniuslens.server.data.dto.InferenceParamDTO;
 import xyz.thuray.geniuslens.server.data.enums.InferenceStatus;
 import xyz.thuray.geniuslens.server.data.po.FunctionPO;
 import xyz.thuray.geniuslens.server.data.po.LoraPO;

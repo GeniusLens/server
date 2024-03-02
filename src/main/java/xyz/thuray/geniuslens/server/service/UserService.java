@@ -15,8 +15,6 @@ import xyz.thuray.geniuslens.server.mapper.UserMapper;
 import xyz.thuray.geniuslens.server.util.JwtUtil;
 import xyz.thuray.geniuslens.server.util.UserContext;
 
-import java.sql.SQLException;
-
 @Service
 @Slf4j
 public class UserService {

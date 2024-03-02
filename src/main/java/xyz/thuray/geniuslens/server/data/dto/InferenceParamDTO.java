@@ -2,7 +2,6 @@ package xyz.thuray.geniuslens.server.data.dto;
 
 import lombok.Data;
 import xyz.thuray.geniuslens.server.data.po.MessagePO;
-import xyz.thuray.geniuslens.server.data.vo.Result;
 
 import java.util.List;
 
