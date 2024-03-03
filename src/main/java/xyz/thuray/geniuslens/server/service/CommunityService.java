@@ -10,6 +10,7 @@ import xyz.thuray.geniuslens.server.data.vo.PostVO;
 import xyz.thuray.geniuslens.server.data.vo.Result;
 import xyz.thuray.geniuslens.server.mapper.FunctionMapper;
 import xyz.thuray.geniuslens.server.mapper.PostMapper;
+import xyz.thuray.geniuslens.server.util.LikeFormatUtil;
 import xyz.thuray.geniuslens.server.util.TimeFormatUtil;
 import xyz.thuray.geniuslens.server.util.UserContext;
 
@@ -54,6 +55,10 @@ public class CommunityService {
         List<PostVO> vos = postMapper.selectAll(0, 10);
         vos.forEach(vo -> {
            vo.setTime(TimeFormatUtil.format(vo.getUpdatedAt()));
+           vo.setLikeCount(LikeFormatUtil.format(vo.getLikeCount()));
+           vo.setImageList(List.of(vo.getImages().split(",")));
+           // 在0~5之间随机
+           vo.setCardHeight((int) (Math.random() * 6));
         });
 
         return Result.success(vos);
@@ -67,6 +72,19 @@ public class CommunityService {
         } catch (Exception e) {
             log.error("delete post error", e);
             return Result.fail("delete post error");
+        }
+        return Result.success();
+    }
+
+    public Result<?> likePost(Long postId) {
+        PostPO po = postMapper.selectById(postId);
+        Long userId = UserContext.getUserId();
+        po.setLikeCount(po.getLikeCount() + 1);
+        try {
+            postMapper.updateById(po);
+        } catch (Exception e) {
+            log.error("like post error", e);
+            return Result.fail("like post error");
         }
         return Result.success();
     }

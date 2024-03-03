@@ -32,4 +32,9 @@ public class CommunityController {
     public Result<?> deletePost(@PathVariable Long id) {
         return communityService.deletePost(id);
     }
+
+    @RequestMapping(value = "/post/like/{id}", method = RequestMethod.POST)
+    public Result<?> likePost(@PathVariable Long id) {
+        return communityService.likePost(id);
+    }
 }

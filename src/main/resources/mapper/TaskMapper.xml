@@ -2,10 +2,17 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="xyz.thuray.geniuslens.server.mapper.TaskMapper">
-
     <update id="deleteTaskById">
         UPDATE task
         SET is_deleted = TRUE
         WHERE id = #{id}
     </update>
+    <select id="selectAllByUserId" resultType="xyz.thuray.geniuslens.server.data.vo.TaskVO">
+        SELECT t.*, f.name AS functionName
+        FROM task t
+                 INNER JOIN function f ON t.function_id = f.id
+        WHERE t.user_id = #{userId}
+          AND t.is_deleted = FALSE
+          AND f.is_deleted = FALSE
+    </select>
 </mapper>

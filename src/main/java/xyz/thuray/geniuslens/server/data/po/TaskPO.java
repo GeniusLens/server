@@ -17,4 +17,5 @@ public class TaskPO extends BasePO{
     private Long functionId;
     private Long userId;
     private Long messageId;
+    private String result;
 }

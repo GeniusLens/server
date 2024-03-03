@@ -19,6 +19,7 @@ import xyz.thuray.geniuslens.server.data.enums.MessageStatus;
 import xyz.thuray.geniuslens.server.data.enums.MessageType;
 import xyz.thuray.geniuslens.server.data.po.*;
 import xyz.thuray.geniuslens.server.data.vo.Result;
+import xyz.thuray.geniuslens.server.data.vo.TaskVO;
 import xyz.thuray.geniuslens.server.mapper.*;
 import xyz.thuray.geniuslens.server.util.*;
 
@@ -204,6 +205,18 @@ public class GenerateService {
         return Result.success(ctx.getTask());
     }
 
+    public Result<?> getUserInferenceList() {
+        Long userId = UserContext.getUserId();
+        log.info("getUserInferenceList: {}", userId);
+        List<TaskVO> list = taskMapper.selectAllByUserId(userId);
+        list.forEach(task -> {
+//            task.setStatusStr(InferenceStatus.getName(task.getStatus()));
+            task.setCreatedAtStr(TimeFormatUtil.format(task.getCreatedAt()));
+        });
+        log.info("getUserInferenceList: {}", list);
+        return Result.success(list);
+    }
+
     @KafkaListener(topics = {"inference"}, groupId = "group1")
     public void consumeMessage(ConsumerRecord<String, String> record) {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -270,6 +283,10 @@ public class GenerateService {
 
         // 更新任务状态
         updateTaskStatus(ctx, InferenceStatus.FINISHED);
+        // 添加result
+        ctx.getTask().setResult(response.body().getData().toString());
+        taskMapper.updateById(ctx.getTask());
+        
         log.info("Inference finished: {}", ctx.getTask().getTaskId());
     }
 

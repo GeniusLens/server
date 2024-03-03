@@ -184,6 +184,7 @@ CREATE TABLE task
     function_id BIGINT       NOT NULL,
     user_id     BIGINT       NOT NULL,
     message_id  BIGINT       NOT NULL,
+    result      VARCHAR(255) NULL,
 
     id          BIGSERIAL    NOT NULL PRIMARY KEY,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

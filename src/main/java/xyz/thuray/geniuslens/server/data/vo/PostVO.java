@@ -1,5 +1,7 @@
 package xyz.thuray.geniuslens.server.data.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +21,11 @@ public class PostVO {
     private Long id;
     private String title;
     private String content;
-    private List<String> images;
+    @JsonProperty("images")
+    private List<String> imageList;
+    // 不在JSON中显示
+    @JsonIgnore
+    private String images;
     private FunctionPO function;
     private Long functionId;
     private String time;
@@ -27,13 +33,15 @@ public class PostVO {
     private String username;
     private String userAvatar;
     private String likeCount;
+    // 0~5
+    private Integer cardHeight;
 
     public static PostVO fromPO(PostPO po, FunctionPO functionPO) {
         return PostVO.builder()
                 .id(po.getId())
                 .title(po.getTitle())
                 .content(po.getContent())
-                .images(List.of(po.getImages().split(",")))
+                .imageList(List.of(po.getImages().split(",")))
                 .function(functionPO)
                 .functionId(po.getFunctionId())
                 .time(TimeFormatUtil.format(po.getUpdatedAt()))

@@ -79,4 +79,9 @@ public class GenerateController {
     public Result<?> createInference(@RequestBody @Valid TaskParamDTO dto) {
         return generateService.createInference(dto);
     }
+
+    @RequestMapping(value = "/inference/list", method = RequestMethod.GET)
+    public Result<?> getUserInferenceList() {
+        return generateService.getUserInferenceList();
+    }
 }
