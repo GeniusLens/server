@@ -14,5 +14,6 @@
         WHERE t.user_id = #{userId}
           AND t.is_deleted = FALSE
           AND f.is_deleted = FALSE
+        ORDER BY t.created_at DESC
     </select>
 </mapper>

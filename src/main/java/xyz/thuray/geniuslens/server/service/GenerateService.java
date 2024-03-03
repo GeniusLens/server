@@ -28,6 +28,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static xyz.thuray.geniuslens.server.data.enums.InferenceStatus.PENDING;
+
 @Service
 @Slf4j
 public class GenerateService {
@@ -210,14 +212,21 @@ public class GenerateService {
         log.info("getUserInferenceList: {}", userId);
         List<TaskVO> list = taskMapper.selectAllByUserId(userId);
         list.forEach(task -> {
-//            task.setStatusStr(InferenceStatus.getName(task.getStatus()));
+            String status = switch (task.getStatus()) {
+                case 1 -> "等待推理";
+                case 2 -> "推理中";
+                case 3 -> "推理完成";
+                case 4 -> "推理失败";
+                default -> "";
+            };
+            task.setStatusStr(status);
             task.setCreatedAtStr(TimeFormatUtil.format(task.getCreatedAt()));
         });
         log.info("getUserInferenceList: {}", list);
         return Result.success(list);
     }
 
-    @KafkaListener(topics = {"inference"}, groupId = "group1")
+    @KafkaListener(topics = {"inference"}, groupId = "group")
     public void consumeMessage(ConsumerRecord<String, String> record) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
@@ -260,7 +269,7 @@ public class GenerateService {
         }, 0, 1000);
         log.debug("获取到锁");
         try {
-            response = inferenceService.singleLoraInfer(SingleLoraDTO.demo());
+            response = inferenceService.singleLoraInfer(SingleLoraDTO.demo(ctx.getSourceImages().get(0)));
         } catch (Exception e) {
             log.error("推理失败:{}", e.getMessage());
             // 释放锁
@@ -286,7 +295,7 @@ public class GenerateService {
         // 添加result
         ctx.getTask().setResult(response.body().getData().toString());
         taskMapper.updateById(ctx.getTask());
-        
+
         log.info("Inference finished: {}", ctx.getTask().getTaskId());
     }
 
@@ -313,9 +322,9 @@ public class GenerateService {
         // 生成Task
         TaskPO task = TaskPO.builder()
                 .taskId(taskId)
-                .status(InferenceStatus.PENDING.getValue())
+                .status(PENDING.getValue())
                 // TODO: 回头得加上functionId
-                .functionId(0L)
+                .functionId(2L)
                 .userId(UserContext.getUserId())
                 .messageId(message.getId())
                 .build();
@@ -329,7 +338,7 @@ public class GenerateService {
 
         InferenceCtx ctx = InferenceCtx.builder()
                 .task(task)
-                .status(InferenceStatus.PENDING)
+                .status(PENDING)
                 .function(function)
                 .message(message)
                 .loras(loraList)

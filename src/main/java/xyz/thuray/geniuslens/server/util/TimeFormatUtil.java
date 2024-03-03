@@ -37,9 +37,7 @@ public class TimeFormatUtil {
     }
 
     public static String format(LocalDateTime time) {
-        log.info("time: {}", time);
         long seconds = LocalDateTime.now().toEpochSecond(zoneOffset) - time.toEpochSecond(zoneOffset);
-        log.info("seconds: {}", seconds);
         // 按顺序遍历timeFormatMap，找到第一个key大于seconds的entry，然后使用其value来格式化时间
         Long closest = timeFormatMap.keySet().stream().filter(aLong -> aLong > seconds).sorted().findFirst().orElse(Long.MAX_VALUE);
         return timeFormatMap.get(closest).apply(time);
