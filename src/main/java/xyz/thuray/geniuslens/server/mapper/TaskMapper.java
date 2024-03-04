@@ -10,4 +10,5 @@ import java.util.List;
 @Mapper
 public interface TaskMapper extends BaseMapper<TaskPO> {
     List<TaskVO> selectAllByUserId(Long userId);
+    TaskVO selectAllById(Long id);
 }

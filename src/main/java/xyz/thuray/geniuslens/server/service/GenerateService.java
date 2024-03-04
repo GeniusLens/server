@@ -51,9 +51,6 @@ public class GenerateService {
     private KafkaTemplate<String, InferenceCtx> kafkaTemplate;
     @Resource
     private LockUtil lockUtil;
-    @Resource
-    private ThreadPoolManager threadPoolManager;
-
 
     public Result<?> createCategory(CategoryParamDTO param) {
         CategoryPO po = categoryMapper.selectByName(param.getName());
@@ -224,6 +221,23 @@ public class GenerateService {
         });
         log.info("getUserInferenceList: {}", list);
         return Result.success(list);
+    }
+
+    public Result<?> getInference(Long id) {
+        TaskVO task = taskMapper.selectAllById(id);
+
+        String status = switch (task.getStatus()) {
+            case 1 -> "等待推理";
+            case 2 -> "推理中";
+            case 3 -> "推理完成";
+            case 4 -> "推理失败";
+            default -> "";
+        };
+        task.setStatusStr(status);
+        task.setCreatedAtStr(TimeFormatUtil.format(task.getCreatedAt()));
+
+        log.info("getInference: {}", task);
+        return Result.success(task);
     }
 
     @KafkaListener(topics = {"inference"}, groupId = "group")

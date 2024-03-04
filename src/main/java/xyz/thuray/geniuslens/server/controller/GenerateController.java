@@ -80,6 +80,11 @@ public class GenerateController {
         return generateService.createInference(dto);
     }
 
+    @RequestMapping(value = "/inference/{id}", method = RequestMethod.GET)
+    public Result<?> getInference(@PathVariable Long id) {
+        return generateService.getInference(id);
+    }
+
     @RequestMapping(value = "/inference/list", method = RequestMethod.GET)
     public Result<?> getUserInferenceList() {
         return generateService.getUserInferenceList();
