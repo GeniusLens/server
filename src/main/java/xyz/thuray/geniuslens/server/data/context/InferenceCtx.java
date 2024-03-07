@@ -23,5 +23,4 @@ public class InferenceCtx {
     private MessagePO message;
     private List<LoraPO> loras;
     private List<String> sourceImages;
-
 }

@@ -1,5 +1,6 @@
 package xyz.thuray.geniuslens.server.service;
 
+import com.baomidou.mybatisplus.core.conditions.interfaces.Func;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import retrofit2.Response;
 import xyz.thuray.geniuslens.server.data.context.InferenceCtx;
 import xyz.thuray.geniuslens.server.data.dto.*;
+import xyz.thuray.geniuslens.server.data.dto.sd.*;
 import xyz.thuray.geniuslens.server.data.enums.InferenceStatus;
 import xyz.thuray.geniuslens.server.data.enums.MessageSender;
 import xyz.thuray.geniuslens.server.data.enums.MessageStatus;
@@ -23,10 +25,9 @@ import xyz.thuray.geniuslens.server.data.vo.TaskVO;
 import xyz.thuray.geniuslens.server.mapper.*;
 import xyz.thuray.geniuslens.server.util.*;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static xyz.thuray.geniuslens.server.data.enums.InferenceStatus.PENDING;
 
@@ -180,6 +181,11 @@ public class GenerateService {
     public Result<?> createInference(TaskParamDTO dto) {
         log.info("Start inference: {}", dto);
         FunctionPO function = functionMapper.selectByName(dto.getFunction());
+        // TODO: 调试用
+        if (function == null) {
+            function = new FunctionPO();
+            function.setId(6L);
+        }
 //        if (function == null) {
 //            return Result.fail("功能不存在");
 //        }
@@ -258,57 +264,93 @@ public class GenerateService {
         // 更新任务状态
         updateTaskStatus(ctx, InferenceStatus.PROCESSING);
 
-        // 推理
-        Response<Result> response;
-        LocalDateTime start = LocalDateTime.now();
         // 等待获取锁
-        log.debug("等待获取锁");
+        // log.debug("等待获取锁");
         Timer timer = new Timer();
-        AtomicInteger cnt = new AtomicInteger(0);
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 if (!lockUtil.lock("inference", "inference")) {
-                    cnt.getAndIncrement();
-                    log.debug("等待获取锁:{}", cnt);
-                    if (cnt.get() > 100) {
-                        log.error("获取锁超时");
-                        cnt.set(0);
-                    }
+                    log.debug("等待获取锁");
                 } else {
                     log.debug("获取到锁");
+                    // 停止等待
                     timer.cancel();
+
+                    // 推理
+                    Response<Result<Void>> response;
+                    try {
+                        response = inferRequest(ctx);
+                    } catch (Exception e) {
+                        log.error("推理失败:{}", e.getMessage());
+                        // 释放锁
+                        if (!lockUtil.unlock("inference", "inference")) {
+                            log.error("释放锁失败");
+                        }
+                        // 更新任务状态
+                        updateTaskStatus(ctx, InferenceStatus.FAILED);
+                        return;
+                    }
+
+                    log.debug("submit: {}", response + " " + response.body());
+                    Timer statusTimer = new Timer();
+                    AtomicReference<Response<TaskStatusDTO>> statusResponse = new AtomicReference<>();
+                    statusTimer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            try {
+                                statusResponse.set(inferenceService.getTaskStatus(new GetTaskDTO(ctx.getTask().getTaskId())));
+                            } catch (Exception e) {
+                                log.error("推理失败:{}", e.getMessage());
+                                // 释放锁
+                                if (!lockUtil.unlock("inference", "inference")) {
+                                    log.error("释放锁失败");
+                                }
+                                // 更新任务状态
+                                updateTaskStatus(ctx, InferenceStatus.FAILED);
+                            }
+
+                            // 判断推理是否完成
+                            if (statusResponse.get() != null
+                                    && statusResponse.get().body() != null
+                            ) {
+                                if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "完成")) {
+                                    log.debug("推理完成:{}", statusResponse.get().body());
+                                    statusTimer.cancel();
+
+                                    // 释放锁
+                                    if (!lockUtil.unlock("inference", "inference")) {
+                                        log.error("释放锁失败");
+                                    }
+
+                                    // 更新任务状态
+                                    updateTaskStatus(ctx, InferenceStatus.FINISHED);
+                                    // 添加result
+                                    log.debug("status Result: {}", statusResponse.get());
+                                    if (statusResponse.get() != null && statusResponse.get().body() != null) {
+                                        ctx.getTask().setResult(Objects.requireNonNull(statusResponse.get().body()).getResult());
+                                        taskMapper.updateById(ctx.getTask());
+                                    } else {
+                                        log.error("推理失败:{}", statusResponse.get().errorBody());
+                                    }
+                                } else if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "任务运行失败")) {
+                                    log.debug("推理失败:{}", statusResponse.get().body());
+                                    statusTimer.cancel();
+
+                                    // 释放锁
+                                    if (!lockUtil.unlock("inference", "inference")) {
+                                        log.error("释放锁失败");
+                                    }
+
+                                    // 更新任务状态
+                                    updateTaskStatus(ctx, InferenceStatus.FAILED);
+                                }
+                            }
+                        }
+                    }, 0, 1000);
                 }
             }
         }, 0, 1000);
-        log.debug("获取到锁");
-        try {
-            response = inferenceService.singleLoraInfer(SingleLoraDTO.demo(ctx.getSourceImages().get(0)));
-        } catch (Exception e) {
-            log.error("推理失败:{}", e.getMessage());
-            // 释放锁
-            if (!lockUtil.unlock("inference", "inference")) {
-                log.error("释放锁失败");
-            }
-            // 更新任务状态
-            updateTaskStatus(ctx, InferenceStatus.FAILED);
-            return;
-        }
-        LocalDateTime end = LocalDateTime.now();
-        log.debug("response: {}", response);
-        log.debug("推理耗时:{}", end.minusSeconds(start.getSecond()));
-        log.debug("推理结果:{}", response.body());
-
-        // 释放锁
-        if (!lockUtil.unlock("inference", "inference")) {
-            log.error("释放锁失败");
-        }
-
-        // 更新任务状态
-        updateTaskStatus(ctx, InferenceStatus.FINISHED);
-        // 添加result
-        ctx.getTask().setResult(response.body().getData().toString());
-        taskMapper.updateById(ctx.getTask());
 
         log.info("Inference finished: {}", ctx.getTask().getTaskId());
     }
@@ -400,4 +442,22 @@ public class GenerateService {
         messageMapper.updateById(message);
     }
 
+    private Response<Result<Void>> inferRequest(InferenceCtx ctx) {
+        FunctionPO function = ctx.getFunction();
+        log.info("inferRequest: {}", function);
+        if (function.getId() == 1) {
+            return inferenceService.singleLoraInfer(SingleLoraDTO.fromCtx(ctx));
+        } else if (function.getId() == 2) {
+            return inferenceService.multiLoraInfer(MultiLoraDTO.fromCtx(ctx));
+        } else if (function.getId() == 3) {
+            return inferenceService.sceneInfer(SceneDTO.fromCtx(ctx, "chinese_makeup"));
+        } else if (function.getId() == 4) {
+            return inferenceService.videoInfer(VideoDTO.fromCtxToScene(ctx, "chinese_makeup"));
+        } else if (function.getId() == 5) {
+            return inferenceService.videoInfer(VideoDTO.fromCtxToReal(ctx));
+        } else if (function.getId() == 6) {
+            return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
+        }
+        return null;
+    }
 }
