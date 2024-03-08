@@ -214,3 +214,19 @@ CREATE TABLE post
     updated_by  BIGINT       NOT NULL,
     is_deleted  BOOL         NOT NULL DEFAULT FALSE
 );
+
+-- 服装
+DROP TABLE IF EXISTS cloth;
+
+CREATE TABLE cloth
+(
+    prompt     VARCHAR(255) NOT NULL,
+    url        VARCHAR(255) NOT NULL,
+
+    id         BIGSERIAL    NOT NULL PRIMARY KEY,
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT       NOT NULL,
+    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT       NOT NULL,
+    is_deleted BOOL         NOT NULL DEFAULT FALSE
+);

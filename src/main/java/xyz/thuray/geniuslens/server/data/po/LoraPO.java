@@ -19,9 +19,9 @@ public class LoraPO extends BasePO {
     private String avatar;
     @TableField("is_default")
     private Boolean defaultFlag;
-    // 0: 创建未训练
-    // 1: 正在训练
-    // 2: 训练完成
-    // -1: 训练失败
+    // 1: 创建未训练
+    // 2: 正在训练
+    // 3: 训练完成
+    // 4: 训练失败
     private int status;
 }

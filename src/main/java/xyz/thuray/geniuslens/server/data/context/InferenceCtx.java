@@ -17,7 +17,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class InferenceCtx {
+    private Integer taskType;
     private TaskPO task;
+    private LoraPO lora;
     private InferenceStatus status;
     private FunctionPO function;
     private MessagePO message;

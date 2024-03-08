@@ -1,6 +1,5 @@
 package xyz.thuray.geniuslens.server.service;
 
-import com.baomidou.mybatisplus.core.conditions.interfaces.Func;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -30,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static xyz.thuray.geniuslens.server.data.enums.InferenceStatus.PENDING;
+import static xyz.thuray.geniuslens.server.data.enums.InferenceStatus.PROCESSING;
 
 @Service
 @Slf4j
@@ -180,25 +180,32 @@ public class GenerateService {
 
     public Result<?> createInference(TaskParamDTO dto) {
         log.info("Start inference: {}", dto);
-        FunctionPO function = functionMapper.selectByName(dto.getFunction());
-        // TODO: 调试用
-        if (function == null) {
-            function = new FunctionPO();
-            function.setId(6L);
-        }
-//        if (function == null) {
-//            return Result.fail("功能不存在");
-//        }
-        List<LoraPO> loraList = loraMapper.selectById(dto.getLoraIds());
+
+        FunctionPO function = null;
+        List<LoraPO> loraList = null;
+        if (dto.getTaskType() == 1) {
+            log.info("TaskType: {}", dto.getTaskType());
+            function = functionMapper.selectById(Long.parseLong(dto.getFunction()));
+            if (function == null) {
+                return Result.fail("功能不存在");
+            }
+            loraList = loraMapper.selectById(dto.getLoraIds());
 //        if (loraList.size() != dto.getLoraIds().size()) {
 //            return Result.fail("Lora不存在");
 //        }
+        } else if (dto.getTaskType() == 2) {
+            log.info("TaskType: {}", dto.getTaskType());
+        } else {
+            log.error("TaskType error");
+            return Result.fail("TaskType error");
+        }
 
         // 初始化Task
         InferenceCtx ctx = initTask(function, loraList, dto);
 
         // 发送kafka消息
-        CompletableFuture<SendResult<String, InferenceCtx>> future = kafkaTemplate.send("inference", ctx.getTask().getTaskId(), ctx);
+        String key = ctx.getTask() == null ? ctx.getLora().getName() : ctx.getTask().getTaskId();
+        CompletableFuture<SendResult<String, InferenceCtx>> future = kafkaTemplate.send("inference", key, ctx);
         future.whenComplete((result, ex) -> {
             if (ex != null) {
                 log.error("Inference {} send kafka error: {}", ctx.getTask().getTaskId(), ex.getMessage());
@@ -262,7 +269,7 @@ public class GenerateService {
         }
 
         // 更新任务状态
-        updateTaskStatus(ctx, InferenceStatus.PROCESSING);
+        updateTaskStatus(ctx, PROCESSING);
 
         // 等待获取锁
         // log.debug("等待获取锁");
@@ -299,7 +306,8 @@ public class GenerateService {
                         @Override
                         public void run() {
                             try {
-                                statusResponse.set(inferenceService.getTaskStatus(new GetTaskDTO(ctx.getTask().getTaskId())));
+                                String id = ctx.getTask() == null ? ctx.getLora().getName() : ctx.getTask().getTaskId();
+                                statusResponse.set(inferenceService.getTaskStatus(new GetTaskDTO(id)));
                             } catch (Exception e) {
                                 log.error("推理失败:{}", e.getMessage());
                                 // 释放锁
@@ -328,8 +336,12 @@ public class GenerateService {
                                     // 添加result
                                     log.debug("status Result: {}", statusResponse.get());
                                     if (statusResponse.get() != null && statusResponse.get().body() != null) {
-                                        ctx.getTask().setResult(Objects.requireNonNull(statusResponse.get().body()).getResult());
-                                        taskMapper.updateById(ctx.getTask());
+                                        if (ctx.getTaskType() == 1 && !ctx.getFunction().getType().equals("tryon")) {
+                                            ctx.getTask().setResult(Objects.requireNonNull(statusResponse.get().body()).getResult());
+                                            taskMapper.updateById(ctx.getTask());
+                                        } else if (ctx.getTaskType() == 1 && ctx.getFunction().getType().equals("tryon")) {
+                                            String result = Objects.requireNonNull(statusResponse.get().body()).getResult();
+                                        }
                                     } else {
                                         log.error("推理失败:{}", statusResponse.get().errorBody());
                                     }
@@ -352,7 +364,7 @@ public class GenerateService {
             }
         }, 0, 1000);
 
-        log.info("Inference finished: {}", ctx.getTask().getTaskId());
+//        log.info("Inference finished: {}", ctx.getTask().getTaskId());
     }
 
     private InferenceCtx initTask(FunctionPO function, List<LoraPO> loraList, TaskParamDTO dto) {
@@ -376,24 +388,44 @@ public class GenerateService {
         log.debug("initTask message: {}", message);
 
         // 生成Task
-        TaskPO task = TaskPO.builder()
-                .taskId(taskId)
-                .status(PENDING.getValue())
-                // TODO: 回头得加上functionId
-                .functionId(2L)
-                .userId(UserContext.getUserId())
-                .messageId(message.getId())
-                .build();
-        try {
-            // 保存Task
-            taskMapper.insert(task);
-        } catch (Exception e) {
-            log.error("initTask error", e);
-        }
-        log.debug("initTask task: {}", task);
+        TaskPO task = null;
+        LoraPO lora = null;
+        if (dto.getTaskType() == 1) {
+            task = TaskPO.builder()
+                    .taskId(taskId)
+                    .status(PENDING.getValue())
+                    // TODO: 回头得加上functionId
+                    .functionId(2L)
+                    .userId(UserContext.getUserId())
+                    .messageId(message.getId())
+                    .build();
+            try {
+                // 保存Task
+                taskMapper.insert(task);
+            } catch (Exception e) {
+                log.error("initTask error", e);
+            }
+            log.debug("initTask task: {}", task);
 
+        } else if (dto.getTaskType() == 2) {
+            lora = LoraPO.builder()
+                    .userId(UserContext.getUserId())
+                    .name(taskId)
+                    .images(dto.getSourceImages().toString())
+                    .avatar(dto.getSourceImages().get(0))
+                    .status(1)
+                    .build();
+            try {
+                // 保存Task
+                loraMapper.insert(lora);
+            } catch (Exception e) {
+                log.error("initTask error", e);
+            }
+        }
         InferenceCtx ctx = InferenceCtx.builder()
+                .taskType(dto.getTaskType())
                 .task(task)
+                .lora(lora)
                 .status(PENDING)
                 .function(function)
                 .message(message)
@@ -411,16 +443,65 @@ public class GenerateService {
 
         // 处理Task状态
         TaskPO task = ctx.getTask();
-        task.setStatus(status.getValue());
-        taskMapper.updateById(task);
+        if (task != null) {
+            task.setStatus(status.getValue());
+            taskMapper.updateById(task);
+        }
         // if (InferenceStatus.FINISHED.equals(status) || InferenceStatus.FAILED.equals(status)) {
         //     task.setDeleted(true);
         //     taskMapper.updateById(task);
         // }
 
+        // 处理Lora
+        LoraPO lora = ctx.getLora();
+        if (lora != null) {
+            lora.setStatus(status.getValue());
+            loraMapper.updateById(lora);
+        }
+
         // 更新Message
         MessagePO message = ctx.getMessage();
         message.setStatus(status.getValue());
+        if (task != null && task.getTaskId() != null) {
+            updateTaskMessage(status, task, message);
+        } else if (lora != null) {
+            updateLoraMessage(status, lora, message);
+        }
+        // 将消息状态改为已读
+        if (Objects.equals(MessageStatus.UNREAD.getValue(), message.getStatus())) {
+            message.setStatus(MessageStatus.READ.getValue());
+        }
+        messageMapper.updateById(message);
+    }
+
+    private Response<Result<Void>> inferRequest(InferenceCtx ctx) {
+        if (ctx.getTaskType() == 1) {
+            FunctionPO function = ctx.getFunction();
+            log.info("inferRequest: {}", function);
+            if (Objects.equals(function.getType(), "solo")) {
+                return inferenceService.singleLoraInfer(SingleLoraDTO.fromCtx(ctx));
+            } else if (Objects.equals(function.getType(), "multi")) {
+                return inferenceService.multiLoraInfer(MultiLoraDTO.fromCtx(ctx));
+            } else if (Objects.equals(function.getType(), "scene")) {
+                return inferenceService.sceneInfer(SceneDTO.fromCtx(ctx, "chinese_makeup"));
+            } else if (Objects.equals(function.getType(), "video_scene")) {
+                return inferenceService.videoInfer(VideoDTO.fromCtxToScene(ctx, "chinese_makeup"));
+            } else if (Objects.equals(function.getType(), "video_real")) {
+                return inferenceService.videoInfer(VideoDTO.fromCtxToReal(ctx));
+            } else if (Objects.equals(function.getType(), "video_video")) {
+                return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
+            } else if (Objects.equals(function.getType(), "tryon")) {
+                return inferenceService.tryOn(TryOnDTO.fromCtx(ctx));
+            }
+        } else if (ctx.getTaskType() == 2) {
+            log.info("inferRequest: {}", ctx);
+            return inferenceService.loraPersonTrain(LoraTrainingDTO.fromCtx(ctx));
+        }
+
+        return null;
+    }
+
+    private void updateTaskMessage(InferenceStatus status, TaskPO task, MessagePO message) {
         switch (status) {
             case PENDING:
                 message.setMessage(task.getTaskId() + "等待推理");
@@ -435,29 +516,22 @@ public class GenerateService {
                 message.setMessage(task.getTaskId() + "推理失败");
                 break;
         }
-        // 将消息状态改为已读
-        if (Objects.equals(MessageStatus.UNREAD.getValue(), message.getStatus())) {
-            message.setStatus(MessageStatus.READ.getValue());
-        }
-        messageMapper.updateById(message);
     }
 
-    private Response<Result<Void>> inferRequest(InferenceCtx ctx) {
-        FunctionPO function = ctx.getFunction();
-        log.info("inferRequest: {}", function);
-        if (function.getId() == 1) {
-            return inferenceService.singleLoraInfer(SingleLoraDTO.fromCtx(ctx));
-        } else if (function.getId() == 2) {
-            return inferenceService.multiLoraInfer(MultiLoraDTO.fromCtx(ctx));
-        } else if (function.getId() == 3) {
-            return inferenceService.sceneInfer(SceneDTO.fromCtx(ctx, "chinese_makeup"));
-        } else if (function.getId() == 4) {
-            return inferenceService.videoInfer(VideoDTO.fromCtxToScene(ctx, "chinese_makeup"));
-        } else if (function.getId() == 5) {
-            return inferenceService.videoInfer(VideoDTO.fromCtxToReal(ctx));
-        } else if (function.getId() == 6) {
-            return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
+    private void updateLoraMessage(InferenceStatus status, LoraPO lora, MessagePO message) {
+        switch (status) {
+            case PENDING:
+                message.setMessage("分身等待训练");
+                break;
+            case PROCESSING:
+                message.setMessage("分身开始训练");
+                break;
+            case FINISHED:
+                message.setMessage("分身训练完成");
+                break;
+            case FAILED:
+                message.setMessage("分身训练失败");
+                break;
         }
-        return null;
     }
 }

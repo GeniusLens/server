@@ -12,6 +12,8 @@ import java.util.Map;
 
 @RetrofitClient(baseUrl = "http://chuangyi.love", callTimeoutMs = 100000, connectTimeoutMs = 100000, readTimeoutMs = 100000)
 public interface InferenceService {
+    @POST("photo/LoraPersonTrain")
+    Response<Result<Void>> loraPersonTrain(@Body LoraTrainingDTO loraTrainingDTO);
 
     @POST("photo/singleLoraInfer")
     Response<Result<Void>> singleLoraInfer(@Body SingleLoraDTO singleLoraDTO);
@@ -24,6 +26,9 @@ public interface InferenceService {
 
     @POST("video/videoInfer")
     Response<Result<Void>> videoInfer(@Body VideoDTO videoDTO);
+
+    @POST("tryon")
+    Response<Result<Void>> tryOn(@Body TryOnDTO tryOnDTO);
 
     @POST("get_task_status")
     Response<TaskStatusDTO> getTaskStatus(@Body GetTaskDTO getTaskDTO);
