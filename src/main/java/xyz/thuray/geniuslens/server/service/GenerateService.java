@@ -47,6 +47,8 @@ public class GenerateService {
     @Resource
     private TaskMapper taskMapper;
     @Resource
+    private ClothMapper clothMapper;
+    @Resource
     private InferenceService inferenceService;
     @Resource
     private KafkaTemplate<String, InferenceCtx> kafkaTemplate;
@@ -189,10 +191,12 @@ public class GenerateService {
             if (function == null) {
                 return Result.fail("功能不存在");
             }
-            loraList = loraMapper.selectById(dto.getLoraIds());
+            if (!Objects.equals(function.getType(), "tryon")) {
+                loraList = loraMapper.selectById(dto.getLoraIds());
 //        if (loraList.size() != dto.getLoraIds().size()) {
 //            return Result.fail("Lora不存在");
 //        }
+            }
         } else if (dto.getTaskType() == 2) {
             log.info("TaskType: {}", dto.getTaskType());
         } else {
@@ -336,16 +340,15 @@ public class GenerateService {
                                     // 添加result
                                     log.debug("status Result: {}", statusResponse.get());
                                     if (statusResponse.get() != null && statusResponse.get().body() != null) {
-                                        if (ctx.getTaskType() == 1 && !ctx.getFunction().getType().equals("tryon")) {
+                                        if (ctx.getTaskType() == 1) {
                                             ctx.getTask().setResult(Objects.requireNonNull(statusResponse.get().body()).getResult());
+                                            log.info("Result: {}", statusResponse.get().body().getResult());
                                             taskMapper.updateById(ctx.getTask());
-                                        } else if (ctx.getTaskType() == 1 && ctx.getFunction().getType().equals("tryon")) {
-                                            String result = Objects.requireNonNull(statusResponse.get().body()).getResult();
                                         }
                                     } else {
                                         log.error("推理失败:{}", statusResponse.get().errorBody());
                                     }
-                                } else if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "任务运行失败")) {
+                                } else if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "运行失败")) {
                                     log.debug("推理失败:{}", statusResponse.get().body());
                                     statusTimer.cancel();
 
@@ -387,6 +390,13 @@ public class GenerateService {
         }
         log.debug("initTask message: {}", message);
 
+        // 生成Cloth
+        ClothPO cloth = null;
+        if (dto.getClothId() != null) {
+            cloth = clothMapper.selectById(dto.getClothId());
+        }
+        log.info("Cloth: {}", cloth);
+
         // 生成Task
         TaskPO task = null;
         LoraPO lora = null;
@@ -394,8 +404,7 @@ public class GenerateService {
             task = TaskPO.builder()
                     .taskId(taskId)
                     .status(PENDING.getValue())
-                    // TODO: 回头得加上functionId
-                    .functionId(2L)
+                    .functionId(Long.parseLong(dto.getFunction()))
                     .userId(UserContext.getUserId())
                     .messageId(message.getId())
                     .build();
@@ -406,7 +415,6 @@ public class GenerateService {
                 log.error("initTask error", e);
             }
             log.debug("initTask task: {}", task);
-
         } else if (dto.getTaskType() == 2) {
             lora = LoraPO.builder()
                     .userId(UserContext.getUserId())
@@ -426,8 +434,10 @@ public class GenerateService {
                 .taskType(dto.getTaskType())
                 .task(task)
                 .lora(lora)
+                .sceneId(dto.getSceneId())
                 .status(PENDING)
                 .function(function)
+                .cloth(cloth)
                 .message(message)
                 .loras(loraList)
                 .sourceImages(dto.getSourceImages())
@@ -491,7 +501,9 @@ public class GenerateService {
             } else if (Objects.equals(function.getType(), "video_video")) {
                 return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
             } else if (Objects.equals(function.getType(), "tryon")) {
-                return inferenceService.tryOn(TryOnDTO.fromCtx(ctx));
+                TryOnDTO tmp = TryOnDTO.fromCtx(ctx);
+                log.info(tmp.toString());
+                return inferenceService.tryOn(tmp);
             }
         } else if (ctx.getTaskType() == 2) {
             log.info("inferRequest: {}", ctx);

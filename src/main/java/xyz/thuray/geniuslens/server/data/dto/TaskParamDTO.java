@@ -15,4 +15,5 @@ public class TaskParamDTO {
     private List<Long> loraIds;
     private List<String> sourceImages;
     private String sceneId;
+    private Long clothId;
 }

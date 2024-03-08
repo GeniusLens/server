@@ -23,12 +23,11 @@ public class TryOnDTO {
 
     public static TryOnDTO fromCtx(InferenceCtx ctx) {
         return TryOnDTO.builder()
-                // TODO
-                .clothUuid("222")
+                .clothUuid(String.valueOf(ctx.getCloth().getId()))
                 .maxTrainSteps(200)
                 .templateImage(ctx.getSourceImages().get(0))
                 .referenceImage(ctx.getSourceImages().get(1))
-                .dinoTextPrompt("T-shirt")
+                .dinoTextPrompt(ctx.getCloth().getPrompt())
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }

@@ -21,7 +21,7 @@ public class MultiLoraDTO {
     public static MultiLoraDTO fromCtx(InferenceCtx ctx) {
         return MultiLoraDTO.builder()
                 .userIds(List.of("liuyifei","mask1"))
-                .image(ctx.getSourceImages().get(0))
+                .image("https://image.thuray.xyz/2024/03/7a0806fe815131850a4b0b5cb8d311e1.png")
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }
