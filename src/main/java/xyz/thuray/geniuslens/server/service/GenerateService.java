@@ -501,9 +501,9 @@ public class GenerateService {
             } else if (Objects.equals(function.getType(), "video_video")) {
                 return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
             } else if (Objects.equals(function.getType(), "tryon")) {
-                TryOnDTO tmp = TryOnDTO.fromCtx(ctx);
-                log.info(tmp.toString());
-                return inferenceService.tryOn(tmp);
+                return inferenceService.tryOn(TryOnDTO.fromCtx(ctx));
+            } else if (Objects.equals(function.getType(), "anime")) {
+                return inferenceService.animeInfer(AnimeDTO.from(ctx));
             }
         } else if (ctx.getTaskType() == 2) {
             log.info("inferRequest: {}", ctx);

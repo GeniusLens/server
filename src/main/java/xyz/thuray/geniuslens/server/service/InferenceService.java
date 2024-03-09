@@ -24,6 +24,9 @@ public interface InferenceService {
     @POST("photo/sceneInfer")
     Response<Result<Void>> sceneInfer(@Body SceneDTO sceneDTO);
 
+    @POST("/photo/styleTransfer")
+    Response<Result<Void>> animeInfer(@Body AnimeDTO animeDTO);
+
     @POST("video/videoInfer")
     Response<Result<Void>> videoInfer(@Body VideoDTO videoDTO);
 
