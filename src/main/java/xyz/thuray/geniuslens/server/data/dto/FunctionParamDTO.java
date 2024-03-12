@@ -12,6 +12,7 @@ public class FunctionParamDTO {
     private String description;
     private String url;
     private String type;
+    private Integer peopleCount;
 
     public static FunctionPO toPO(FunctionParamDTO dto, Long categoryId) {
         return FunctionPO.builder()
@@ -20,6 +21,7 @@ public class FunctionParamDTO {
                 .description(dto.getDescription())
                 .url(dto.getUrl())
                 .type(dto.getType())
+                .peopleCount(dto.getPeopleCount())
                 .build();
     }
 }

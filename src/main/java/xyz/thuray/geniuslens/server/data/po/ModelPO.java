@@ -8,12 +8,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName("function")
-public class FunctionPO extends BasePO {
-    private Long categoryId;
+@ToString(callSuper = true)
+@TableName("model")
+public class ModelPO extends BasePO {
     private String name;
-    private String description;
     private String url;
-    private String type;
-    private Integer peopleCount;
 }

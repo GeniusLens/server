@@ -20,8 +20,6 @@
         SELECT t.*, f.name AS functionName
         FROM task t
                  INNER JOIN function f ON t.function_id = f.id
-        WHERE t.is_deleted = FALSE
-          AND f.is_deleted = FALSE
-          AND t.id = #{id}
+        WHERE t.id = #{id}
     </select>
 </mapper>

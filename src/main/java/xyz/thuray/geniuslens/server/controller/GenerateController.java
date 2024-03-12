@@ -8,6 +8,7 @@ import xyz.thuray.geniuslens.server.data.vo.Result;
 import xyz.thuray.geniuslens.server.service.GenerateService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/generate")
@@ -70,7 +71,12 @@ public class GenerateController {
         return generateService.getLoraList();
     }
 
-    @RequestMapping(value = "/lora/{id}", method = RequestMethod.DELETE)
+    @RequestMapping(value = "/lora/edit", method = RequestMethod.POST)
+    public Result<?> editLora(@RequestBody Map<String, Object> map) {
+        return generateService.updateLoraName(map);
+    }
+
+                              @RequestMapping(value = "/lora/{id}", method = RequestMethod.DELETE)
     public Result<?> deleteLora(@PathVariable Long id) {
         return generateService.deleteLora(id);
     }

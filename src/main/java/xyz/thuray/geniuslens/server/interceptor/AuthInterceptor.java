@@ -4,6 +4,7 @@ package xyz.thuray.geniuslens.server.interceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import xyz.thuray.geniuslens.server.util.JwtUtil;
@@ -13,7 +14,7 @@ import xyz.thuray.geniuslens.server.util.UserContext;
 @Slf4j
 public class AuthInterceptor implements HandlerInterceptor {
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull Object handler) {
         // 获取Bearer Token
         String token = request.getHeader("Authorization");
         log.info("token: {}", token);
@@ -28,7 +29,7 @@ public class AuthInterceptor implements HandlerInterceptor {
             response.setStatus(401);
             return false;
         }
-        log.info("userId: {}", 1L);
+        log.info("userId: {}", userId);
         UserContext.setUserId(userId);
         return true;
     }

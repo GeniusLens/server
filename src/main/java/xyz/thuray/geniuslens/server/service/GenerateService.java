@@ -167,17 +167,40 @@ public class GenerateService {
 
     public Result<?> deleteLora(Long id) {
         Long userId = UserContext.getUserId();
-        LoraPO po = loraMapper.selectById(id);
-        if (po == null) {
+        List<Long> ids = new ArrayList<>();
+        ids.add(id);
+        List<LoraPO> loraList = loraMapper.selectById(ids);
+        if (loraList.size() != 1) {
             return Result.fail("Lora不存在");
         }
-        if (!po.getUserId().equals(userId)) {
+        LoraPO lora = loraList.get(0);
+        if (lora == null) {
+            return Result.fail("Lora不存在");
+        }
+        if (!lora.getUserId().equals(userId)) {
             return Result.fail("无权删除");
         }
-        po.setDeleted(true);
-        loraMapper.updateById(po);
+        loraMapper.deleteById(id);
 
         return Result.success();
+    }
+
+    public Result<?> updateLoraName(Map<String, Object> map) {
+        Long loraId = Long.parseLong(map.get("id").toString());
+        String name = map.get("name").toString();
+
+        List<Long> ids = new ArrayList<>();
+        ids.add(loraId);
+        List<LoraPO> loraList = loraMapper.selectById(ids);
+        if (loraList.size() != 1) {
+            return Result.fail("Lora不存在");
+        }
+        LoraPO lora = loraList.get(0);
+
+        lora.setDescription(name);
+        loraMapper.updateById(lora);
+
+        return Result.success(lora);
     }
 
     public Result<?> createInference(TaskParamDTO dto) {
@@ -241,7 +264,11 @@ public class GenerateService {
     }
 
     public Result<?> getInference(Long id) {
+        log.info("getInference: {}", id);
         TaskVO task = taskMapper.selectAllById(id);
+        if (task == null) {
+            return Result.fail("任务不存在");
+        }
 
         String status = switch (task.getStatus()) {
             case 1 -> "等待推理";
@@ -414,11 +441,10 @@ public class GenerateService {
             } catch (Exception e) {
                 log.error("initTask error", e);
             }
-            log.debug("initTask task: {}", task);
         } else if (dto.getTaskType() == 2) {
             lora = LoraPO.builder()
                     .userId(UserContext.getUserId())
-                    .name(taskId)
+                    .name(dto.getSceneId())
                     .images(dto.getSourceImages().toString())
                     .avatar(dto.getSourceImages().get(0))
                     .status(1)

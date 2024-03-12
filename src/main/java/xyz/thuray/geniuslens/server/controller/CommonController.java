@@ -28,4 +28,9 @@ public class CommonController {
     public Result<?> getClothList() {
         return commonService.getClothList();
     }
+
+    @RequestMapping(value = "/model", method = RequestMethod.GET)
+    public Result<?> getModelList() {
+        return commonService.getModelList();
+    }
 }

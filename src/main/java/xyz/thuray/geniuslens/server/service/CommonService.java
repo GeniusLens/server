@@ -6,10 +6,12 @@ import org.springframework.stereotype.Service;
 import xyz.thuray.geniuslens.server.data.enums.MessageStatus;
 import xyz.thuray.geniuslens.server.data.po.ClothPO;
 import xyz.thuray.geniuslens.server.data.po.MessagePO;
+import xyz.thuray.geniuslens.server.data.po.ModelPO;
 import xyz.thuray.geniuslens.server.data.vo.MessageVO;
 import xyz.thuray.geniuslens.server.data.vo.Result;
 import xyz.thuray.geniuslens.server.mapper.ClothMapper;
 import xyz.thuray.geniuslens.server.mapper.MessageMapper;
+import xyz.thuray.geniuslens.server.mapper.ModelMapper;
 import xyz.thuray.geniuslens.server.util.UserContext;
 
 import java.util.List;
@@ -21,6 +23,8 @@ public class CommonService {
     private MessageMapper messageMapper;
     @Resource
     private ClothMapper clothMapper;
+    @Resource
+    private ModelMapper modelMapper;
 
     public Result<?> getMessageList(Integer type) {
         Long userId = UserContext.getUserId();
@@ -48,4 +52,11 @@ public class CommonService {
 
         return Result.success(pos);
     }
+
+    public Result<?> getModelList() {
+        List<ModelPO> pos = modelMapper.selectList();
+
+        return Result.success(pos);
+    }
+
 }
