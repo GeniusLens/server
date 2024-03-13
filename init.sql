@@ -247,3 +247,21 @@ CREATE TABLE model
     updated_by BIGINT       NOT NULL,
     is_deleted BOOL         NOT NULL DEFAULT FALSE
 );
+
+-- 评论
+DROP TABLE IF EXISTS comment;
+
+CREATE TABLE comment
+(
+    user_id     BIGINT       NOT NULL,
+    post_id     BIGINT       NOT NULL,
+    content     VARCHAR(255) NOT NULL,
+    like_count  int          NOT NULL DEFAULT 0,
+
+    id          BIGSERIAL    NOT NULL PRIMARY KEY,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by  BIGINT       NOT NULL,
+    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by  BIGINT       NOT NULL,
+    is_deleted  BOOL         NOT NULL DEFAULT FALSE
+);

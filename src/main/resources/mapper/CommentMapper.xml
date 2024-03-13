@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="xyz.thuray.geniuslens.server.mapper.CommentMapper">
+    <select id="selectListByPostId" resultType="xyz.thuray.geniuslens.server.data.vo.CommentVO">
+        SELECT c.id, c.content, c.created_at, c.like_count, u.nickname as userName, u.avatar as userAvatar
+        FROM comment c
+                 LEFT JOIN "user" u ON c.user_id = u.id
+        WHERE post_id = #{postId}
+    </select>
+</mapper>

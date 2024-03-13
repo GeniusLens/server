@@ -6,8 +6,10 @@ import org.springframework.stereotype.Service;
 import xyz.thuray.geniuslens.server.data.dto.PostParamDTO;
 import xyz.thuray.geniuslens.server.data.po.FunctionPO;
 import xyz.thuray.geniuslens.server.data.po.PostPO;
+import xyz.thuray.geniuslens.server.data.vo.CommentVO;
 import xyz.thuray.geniuslens.server.data.vo.PostVO;
 import xyz.thuray.geniuslens.server.data.vo.Result;
+import xyz.thuray.geniuslens.server.mapper.CommentMapper;
 import xyz.thuray.geniuslens.server.mapper.FunctionMapper;
 import xyz.thuray.geniuslens.server.mapper.PostMapper;
 import xyz.thuray.geniuslens.server.util.LikeFormatUtil;
@@ -23,6 +25,8 @@ public class CommunityService {
     private PostMapper postMapper;
     @Resource
     private FunctionMapper functionMapper;
+    @Resource
+    private CommentMapper commentMapper;
 
     public Result<?> createPost(PostParamDTO postParamDTO) {
 //        FunctionPO f = functionMapper.selectById(postParamDTO.getFunctionId());
@@ -87,5 +91,15 @@ public class CommunityService {
             return Result.fail("like post error");
         }
         return Result.success();
+    }
+
+    public Result<?> getPostCommentList(Long postId) {
+        List<CommentVO> vos = commentMapper.selectListByPostId(postId);
+        vos.forEach(vo -> {
+            log.info("vo: {}", vo);
+            vo.setTime(TimeFormatUtil.format(vo.getCreatedAt()));
+        });
+
+        return Result.success(vos);
     }
 }

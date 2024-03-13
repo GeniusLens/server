@@ -37,4 +37,9 @@ public class CommunityController {
     public Result<?> likePost(@PathVariable Long id) {
         return communityService.likePost(id);
     }
+
+    @RequestMapping(value = "/post/comment/{id}", method = RequestMethod.GET)
+    public Result<?> getCommentList(@PathVariable Long id) {
+        return communityService.getPostCommentList(id);
+    }
 }
