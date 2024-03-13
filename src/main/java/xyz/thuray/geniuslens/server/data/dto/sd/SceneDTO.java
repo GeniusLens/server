@@ -15,10 +15,10 @@ public class SceneDTO {
     @JsonProperty("task_id")
     private String taskId;
 
-    public static SceneDTO fromCtx(InferenceCtx ctx, String sceneId) {
+    public static SceneDTO fromCtx(InferenceCtx ctx) {
         return SceneDTO.builder()
-                .sceneId(sceneId)
-                .userId("liuyifei2")
+                .sceneId(ctx.getFunction().getSceneId())
+                .userId(ctx.getLoras().get(0).getName())
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }

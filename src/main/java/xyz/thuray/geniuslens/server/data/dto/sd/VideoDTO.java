@@ -27,42 +27,44 @@ public class VideoDTO {
     @JsonProperty("task_id")
     private String taskId;
 
-    public static VideoDTO fromCtxToScene(InferenceCtx ctx, String sceneId) {
+    public static VideoDTO fromCtxToScene(InferenceCtx ctx) {
+        String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of("liuyifei2")) // TODO: 切换成真实的userid
+                .userIds(List.of(loraName))
                 .initImageUrl("")
                 .lastImageUrl("")
                 .videoUrl("")
                 .t2vPrompt("")
-                .sceneId(sceneId)
+                .sceneId(ctx.getFunction().getSceneId())
                 .maxFrames(8)  // TODO: 使用-1
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }
 
-    public static VideoDTO fromCtxToReal(InferenceCtx ctx) {
+    public static VideoDTO fromCtxToSolo(InferenceCtx ctx) {
+        String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of("liuyifei2")) // TODO: 切换成真实的userid
-                // .initImageUrl(ctx.getSourceImages().get(0))
-                .initImageUrl("https://integrity-backend.sduonline.cn/files/0d5e86b2-9207-444b-ba28-cf445b3458d9.JPG")
+                .userIds(List.of(loraName))
+                .initImageUrl(ctx.getSourceImages().get(0))
                 .lastImageUrl("")
                 .videoUrl("")
                 .t2vPrompt("")
                 .sceneId("")
-                .maxFrames(8)  // TODO: 使用-1
+                .maxFrames(8)
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }
 
     public static VideoDTO fromCtxToVideo(InferenceCtx ctx) {
+        String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of("liuyifei2")) // TODO: 切换成真实的userid
+                .userIds(List.of(loraName))
                 .initImageUrl("")
                 .lastImageUrl("")
                 .videoUrl(ctx.getSourceImages().get(0))
                 .t2vPrompt("")
                 .sceneId("none")
-                .maxFrames(8)  // TODO: 使用-1
+                .maxFrames(8)
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }

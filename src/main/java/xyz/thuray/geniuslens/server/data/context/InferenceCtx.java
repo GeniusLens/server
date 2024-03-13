@@ -16,8 +16,8 @@ import java.util.List;
 public class InferenceCtx {
     private Integer taskType;
     private TaskPO task;
-    private LoraPO lora;
-    private String sceneId;
+    private LoraPO loraToTrain;
+    // private String sceneId;
     private InferenceStatus status;
     private FunctionPO function;
     private MessagePO message;

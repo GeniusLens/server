@@ -26,6 +26,7 @@ import xyz.thuray.geniuslens.server.util.*;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static xyz.thuray.geniuslens.server.data.enums.InferenceStatus.PENDING;
@@ -204,34 +205,38 @@ public class GenerateService {
     }
 
     public Result<?> createInference(TaskParamDTO dto) {
-        log.info("Start inference: {}", dto);
+        log.info("Start create inference: {}", dto);
 
         FunctionPO function = null;
         List<LoraPO> loraList = null;
         if (dto.getTaskType() == 1) {
-            log.info("TaskType: {}", dto.getTaskType());
+            // 获取本次推理的功能信息
             function = functionMapper.selectById(Long.parseLong(dto.getFunction()));
             if (function == null) {
                 return Result.fail("功能不存在");
             }
-            if (!Objects.equals(function.getType(), "tryon")) {
+            log.debug("Function: {}", function);
+            // 除了这些功能，其他功能都需要lora
+            if (!(Objects.equals(function.getType(), "tryon") || Objects.equals(function.getType(), "anime"))) {
                 loraList = loraMapper.selectById(dto.getLoraIds());
-//        if (loraList.size() != dto.getLoraIds().size()) {
-//            return Result.fail("Lora不存在");
-//        }
+                if (loraList.size() != dto.getLoraIds().size()) {
+                    return Result.fail("Lora不存在");
+                }
+                log.debug("Lora: {}", loraList);
             }
+            // 处理训练任务
         } else if (dto.getTaskType() == 2) {
-            log.info("TaskType: {}", dto.getTaskType());
+            log.debug("训练任务，不需要function和lora");
         } else {
             log.error("TaskType error");
-            return Result.fail("TaskType error");
+            return Result.fail("任务类型错误");
         }
 
         // 初始化Task
         InferenceCtx ctx = initTask(function, loraList, dto);
 
         // 发送kafka消息
-        String key = ctx.getTask() == null ? ctx.getLora().getName() : ctx.getTask().getTaskId();
+        String key = ctx.getTask() == null ? ctx.getLoraToTrain().getName() : ctx.getTask().getTaskId();
         CompletableFuture<SendResult<String, InferenceCtx>> future = kafkaTemplate.send("inference", key, ctx);
         future.whenComplete((result, ex) -> {
             if (ex != null) {
@@ -295,33 +300,31 @@ public class GenerateService {
         try {
             ctx = objectMapper.readValue(record.value(), InferenceCtx.class);
         } catch (JsonProcessingException e) {
-            log.error("Inference consumeMessage error", e);
+            log.error("序列化解析失败:{}", e.getMessage());
             return;
         }
+        log.debug("消息解析成功:{}", ctx);
 
-        // 更新任务状态
-        updateTaskStatus(ctx, PROCESSING);
-
-        // 等待获取锁
-        // log.debug("等待获取锁");
+        // 获取分布式锁
         Timer timer = new Timer();
+        AtomicInteger count = new AtomicInteger(0);
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 if (!lockUtil.lock("inference", "inference")) {
-                    log.debug("等待获取锁");
+                    count.getAndIncrement();
                 } else {
-                    log.debug("获取到锁");
                     // 停止等待
                     timer.cancel();
-
-                    // 推理
+                    log.info("获取锁成功 共尝试{}次", count);
+                    // 更新任务状态
+                    updateTaskStatus(ctx, PROCESSING);
+                    // 准备进行推理
                     Response<Result<Void>> response;
                     try {
                         response = inferRequest(ctx);
                     } catch (Exception e) {
                         log.error("推理失败:{}", e.getMessage());
-                        // 释放锁
                         if (!lockUtil.unlock("inference", "inference")) {
                             log.error("释放锁失败");
                         }
@@ -329,19 +332,23 @@ public class GenerateService {
                         updateTaskStatus(ctx, InferenceStatus.FAILED);
                         return;
                     }
+                    log.debug("任务提交成功：{}", response);
 
-                    log.debug("submit: {}", response + " " + response.body());
+                    // 使用一个新的Timer来轮询任务状态
                     Timer statusTimer = new Timer();
+                    // 为了保证多线程安全，使用AtomicReference
                     AtomicReference<Response<TaskStatusDTO>> statusResponse = new AtomicReference<>();
                     statusTimer.schedule(new TimerTask() {
                         @Override
                         public void run() {
                             try {
-                                String id = ctx.getTask() == null ? ctx.getLora().getName() : ctx.getTask().getTaskId();
+                                // 计算需要使用的id
+                                // 如果是训练任务，使用lora的name
+                                // 如果是推理任务，使用task的taskId
+                                String id = ctx.getTask() == null ? ctx.getLoraToTrain().getName() : ctx.getTask().getTaskId();
                                 statusResponse.set(inferenceService.getTaskStatus(new GetTaskDTO(id)));
                             } catch (Exception e) {
                                 log.error("推理失败:{}", e.getMessage());
-                                // 释放锁
                                 if (!lockUtil.unlock("inference", "inference")) {
                                     log.error("释放锁失败");
                                 }
@@ -353,6 +360,7 @@ public class GenerateService {
                             if (statusResponse.get() != null
                                     && statusResponse.get().body() != null
                             ) {
+                                // 处理推理完成
                                 if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "完成")) {
                                     log.debug("推理完成:{}", statusResponse.get().body());
                                     statusTimer.cancel();
@@ -364,8 +372,7 @@ public class GenerateService {
 
                                     // 更新任务状态
                                     updateTaskStatus(ctx, InferenceStatus.FINISHED);
-                                    // 添加result
-                                    log.debug("status Result: {}", statusResponse.get());
+
                                     if (statusResponse.get() != null && statusResponse.get().body() != null) {
                                         if (ctx.getTaskType() == 1) {
                                             ctx.getTask().setResult(Objects.requireNonNull(statusResponse.get().body()).getResult());
@@ -375,6 +382,7 @@ public class GenerateService {
                                     } else {
                                         log.error("推理失败:{}", statusResponse.get().errorBody());
                                     }
+                                    // 处理推理失败
                                 } else if (Objects.equals(Objects.requireNonNull(statusResponse.get().body()).getStatus(), "运行失败")) {
                                     log.debug("推理失败:{}", statusResponse.get().body());
                                     statusTimer.cancel();
@@ -393,15 +401,13 @@ public class GenerateService {
                 }
             }
         }, 0, 1000);
-
-//        log.info("Inference finished: {}", ctx.getTask().getTaskId());
     }
 
     private InferenceCtx initTask(FunctionPO function, List<LoraPO> loraList, TaskParamDTO dto) {
         // 生成taskId
         String taskId = UUIDUtil.generate();
         taskId = SHAUtil.MD5(taskId);
-        log.info("Initializing task: {}", taskId);
+        log.info("生成taskId: {}", taskId);
 
         // 生成message
         MessagePO message = MessagePO.builder()
@@ -415,14 +421,15 @@ public class GenerateService {
         } catch (Exception e) {
             log.error("initTask error", e);
         }
-        log.debug("initTask message: {}", message);
+        log.debug("生成message: {}", message);
 
         // 生成Cloth
+        // 对于换装功能，需要获取cloth信息
         ClothPO cloth = null;
         if (dto.getClothId() != null) {
             cloth = clothMapper.selectById(dto.getClothId());
         }
-        log.info("Cloth: {}", cloth);
+        log.debug("生成cloth: {}", cloth);
 
         // 生成Task
         TaskPO task = null;
@@ -436,11 +443,11 @@ public class GenerateService {
                     .messageId(message.getId())
                     .build();
             try {
-                // 保存Task
                 taskMapper.insert(task);
             } catch (Exception e) {
                 log.error("initTask error", e);
             }
+            log.debug("生成task: {}", task);
         } else if (dto.getTaskType() == 2) {
             lora = LoraPO.builder()
                     .userId(UserContext.getUserId())
@@ -450,17 +457,19 @@ public class GenerateService {
                     .status(1)
                     .build();
             try {
-                // 保存Task
                 loraMapper.insert(lora);
             } catch (Exception e) {
                 log.error("initTask error", e);
             }
+            log.debug("生成lora: {}", lora);
         }
+
+        // 构建推理上下文
         InferenceCtx ctx = InferenceCtx.builder()
                 .taskType(dto.getTaskType())
                 .task(task)
-                .lora(lora)
-                .sceneId(dto.getSceneId())
+                .loraToTrain(lora)
+                // .sceneId(dto.getSceneId())
                 .status(PENDING)
                 .function(function)
                 .cloth(cloth)
@@ -468,12 +477,13 @@ public class GenerateService {
                 .loras(loraList)
                 .sourceImages(dto.getSourceImages())
                 .build();
+        log.debug("生成ctx: {}", ctx);
 
-        log.info("initTask: {}", ctx);
+        log.info("任务初始化完成: {}", ctx);
         return ctx;
     }
 
-    private void updateTaskStatus(InferenceCtx ctx, InferenceStatus status) {
+    public void updateTaskStatus(InferenceCtx ctx, InferenceStatus status) {
         // 更新ctx状态
         ctx.setStatus(status);
 
@@ -489,7 +499,7 @@ public class GenerateService {
         // }
 
         // 处理Lora
-        LoraPO lora = ctx.getLora();
+        LoraPO lora = ctx.getLoraToTrain();
         if (lora != null) {
             lora.setStatus(status.getValue());
             loraMapper.updateById(lora);
@@ -510,26 +520,50 @@ public class GenerateService {
         messageMapper.updateById(message);
     }
 
+    /**
+     * 推理请求
+     *
+     * <p>根据上下文中的任务类型，调用不同的推理接口
+     *
+     * @param ctx 上下文
+     * @return 推理结果
+     */
     private Response<Result<Void>> inferRequest(InferenceCtx ctx) {
         if (ctx.getTaskType() == 1) {
             FunctionPO function = ctx.getFunction();
             log.info("inferRequest: {}", function);
             if (Objects.equals(function.getType(), "solo")) {
-                return inferenceService.singleLoraInfer(SingleLoraDTO.fromCtx(ctx));
+                SingleLoraDTO dto = SingleLoraDTO.fromCtx(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.singleLoraInfer(dto);
             } else if (Objects.equals(function.getType(), "multi")) {
-                return inferenceService.multiLoraInfer(MultiLoraDTO.fromCtx(ctx));
+                MultiLoraDTO dto = MultiLoraDTO.fromCtx(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.multiLoraInfer(dto);
             } else if (Objects.equals(function.getType(), "scene")) {
-                return inferenceService.sceneInfer(SceneDTO.fromCtx(ctx, "chinese_makeup"));
+                SceneDTO dto = SceneDTO.fromCtx(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.sceneInfer(dto);
             } else if (Objects.equals(function.getType(), "video_scene")) {
-                return inferenceService.videoInfer(VideoDTO.fromCtxToScene(ctx, "chinese_makeup"));
-            } else if (Objects.equals(function.getType(), "video_real")) {
-                return inferenceService.videoInfer(VideoDTO.fromCtxToReal(ctx));
+                VideoDTO dto = VideoDTO.fromCtxToScene(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.videoInfer(dto);
+            } else if (Objects.equals(function.getType(), "video_solo")) {
+                VideoDTO dto = VideoDTO.fromCtxToSolo(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.videoInfer(dto);
             } else if (Objects.equals(function.getType(), "video_video")) {
-                return inferenceService.videoInfer(VideoDTO.fromCtxToVideo(ctx));
+                VideoDTO dto = VideoDTO.fromCtxToVideo(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.videoInfer(dto);
             } else if (Objects.equals(function.getType(), "tryon")) {
-                return inferenceService.tryOn(TryOnDTO.fromCtx(ctx));
+                TryOnDTO dto = TryOnDTO.fromCtx(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.tryOn(dto);
             } else if (Objects.equals(function.getType(), "anime")) {
-                return inferenceService.animeInfer(AnimeDTO.from(ctx));
+                AnimeDTO dto = AnimeDTO.from(ctx);
+                log.info("inferRequest: {}", dto);
+                return inferenceService.animeInfer(dto);
             }
         } else if (ctx.getTaskType() == 2) {
             log.info("inferRequest: {}", ctx);

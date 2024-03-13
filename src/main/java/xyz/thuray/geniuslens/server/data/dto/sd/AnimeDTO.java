@@ -24,8 +24,8 @@ public class AnimeDTO {
     public static AnimeDTO from(InferenceCtx ctx) {
         return AnimeDTO.builder()
                 .images(ctx.getSourceImages().get(0))
-                .prompt("1girl")
-                .model("etu 改版_1.0.safetensors")
+                .prompt(ctx.getFunction().getPrompt())
+                .model(ctx.getFunction().getName())
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }

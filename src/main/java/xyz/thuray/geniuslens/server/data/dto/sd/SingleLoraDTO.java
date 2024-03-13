@@ -25,9 +25,7 @@ public class SingleLoraDTO {
 
     public static SingleLoraDTO fromCtx(InferenceCtx ctx) {
         return SingleLoraDTO.builder()
-                // TODO: 切换成真实的userid
-//                .userid(ctx.getLoras().get(0).getName())
-                .userid("liuyifei2")
+                .userid(ctx.getLoras().get(0).getName())
                 .imagesUrl(ctx.getSourceImages().get(0))
                 .additionalPrompt("")
                 .makeupTransfer(true)

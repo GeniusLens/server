@@ -87,6 +87,9 @@ CREATE TABLE function
     url          VARCHAR(255) NOT NULL,
     type         VARCHAR(255) NOT NULL,
     people_count int          NOT NULL DEFAULT 0,
+    scene_id     VARCHAR(255) NULL,
+    ckpt         VARCHAR(255) NULL,
+    prompt       VARCHAR(255) NULL,
 
     id           BIGSERIAL    NOT NULL PRIMARY KEY,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -238,7 +241,7 @@ DROP TABLE IF EXISTS model;
 CREATE TABLE model
 (
     name       VARCHAR(255) NOT NULL,
-    url       VARCHAR(255) NOT NULL,
+    url        VARCHAR(255) NOT NULL,
 
     id         BIGSERIAL    NOT NULL PRIMARY KEY,
     created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -253,15 +256,15 @@ DROP TABLE IF EXISTS comment;
 
 CREATE TABLE comment
 (
-    user_id     BIGINT       NOT NULL,
-    post_id     BIGINT       NOT NULL,
-    content     VARCHAR(255) NOT NULL,
-    like_count  int          NOT NULL DEFAULT 0,
+    user_id    BIGINT       NOT NULL,
+    post_id    BIGINT       NOT NULL,
+    content    VARCHAR(255) NOT NULL,
+    like_count int          NOT NULL DEFAULT 0,
 
-    id          BIGSERIAL    NOT NULL PRIMARY KEY,
-    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by  BIGINT       NOT NULL,
-    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by  BIGINT       NOT NULL,
-    is_deleted  BOOL         NOT NULL DEFAULT FALSE
+    id         BIGSERIAL    NOT NULL PRIMARY KEY,
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT       NOT NULL,
+    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT       NOT NULL,
+    is_deleted BOOL         NOT NULL DEFAULT FALSE
 );

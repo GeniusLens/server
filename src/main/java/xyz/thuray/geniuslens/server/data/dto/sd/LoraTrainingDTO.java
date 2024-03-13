@@ -19,9 +19,9 @@ public class LoraTrainingDTO {
 
     public static LoraTrainingDTO fromCtx(InferenceCtx ctx) {
         return LoraTrainingDTO.builder()
-                .userId(ctx.getLora().getName())
+                .userId(ctx.getLoraToTrain().getName())
                 .imagesUrls(ctx.getSourceImages())
-                .taskId(ctx.getLora().getName())
+                .taskId(ctx.getLoraToTrain().getName())
                 .build();
     }
 }

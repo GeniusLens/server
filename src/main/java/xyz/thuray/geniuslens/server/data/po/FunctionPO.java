@@ -1,5 +1,6 @@
 package xyz.thuray.geniuslens.server.data.po;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
@@ -16,4 +17,8 @@ public class FunctionPO extends BasePO {
     private String url;
     private String type;
     private Integer peopleCount;
+    private String sceneId;
+    @TableField("ckpt")
+    private String checkPoint;
+    private String prompt;
 }
