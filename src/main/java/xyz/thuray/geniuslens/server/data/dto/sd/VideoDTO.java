@@ -5,13 +5,11 @@ import lombok.Builder;
 import lombok.Data;
 import xyz.thuray.geniuslens.server.data.context.InferenceCtx;
 
-import java.util.List;
-
 @Data
 @Builder
 public class VideoDTO {
     @JsonProperty("user_id")
-    private List<String> userIds;
+    private String userId;
     @JsonProperty("init_image_path")
     private String initImageUrl;
     @JsonProperty("last_image_path")
@@ -27,16 +25,16 @@ public class VideoDTO {
     @JsonProperty("task_id")
     private String taskId;
 
-    public static VideoDTO fromCtxToScene(InferenceCtx ctx) {
+    public static VideoDTO fromCtxToAnime(InferenceCtx ctx) {
         String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of(loraName))
+                .userId(loraName)
                 .initImageUrl("")
                 .lastImageUrl("")
                 .videoUrl("")
                 .t2vPrompt("")
                 .sceneId(ctx.getFunction().getSceneId())
-                .maxFrames(8)  // TODO: 使用-1
+                .maxFrames(16)  // TODO: 使用-1
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }
@@ -44,13 +42,13 @@ public class VideoDTO {
     public static VideoDTO fromCtxToSolo(InferenceCtx ctx) {
         String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of(loraName))
+                .userId(loraName)
                 .initImageUrl(ctx.getSourceImages().get(0))
                 .lastImageUrl("")
                 .videoUrl("")
                 .t2vPrompt("")
                 .sceneId("")
-                .maxFrames(8)
+                .maxFrames(16)
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }
@@ -58,13 +56,13 @@ public class VideoDTO {
     public static VideoDTO fromCtxToVideo(InferenceCtx ctx) {
         String loraName = ctx.getLoras().get(0).getName();
         return VideoDTO.builder()
-                .userIds(List.of(loraName))
+                .userId(loraName)
                 .initImageUrl("")
                 .lastImageUrl("")
                 .videoUrl(ctx.getSourceImages().get(0))
                 .t2vPrompt("")
                 .sceneId("none")
-                .maxFrames(8)
+                .maxFrames(16)
                 .taskId(ctx.getTask().getTaskId())
                 .build();
     }

@@ -217,7 +217,9 @@ public class GenerateService {
             }
             log.debug("Function: {}", function);
             // 除了这些功能，其他功能都需要lora
-            if (!(Objects.equals(function.getType(), "tryon") || Objects.equals(function.getType(), "anime"))) {
+            if (!(Objects.equals(function.getType(), "tryon")
+                    || Objects.equals(function.getType(), "anime")
+                    || Objects.equals(function.getType(), "video_anime"))) {
                 loraList = loraMapper.selectById(dto.getLoraIds());
                 if (loraList.size() != dto.getLoraIds().size()) {
                     return Result.fail("Lora不存在");
@@ -545,7 +547,7 @@ public class GenerateService {
                 log.info("inferRequest: {}", dto);
                 return inferenceService.sceneInfer(dto);
             } else if (Objects.equals(function.getType(), "video_scene")) {
-                VideoDTO dto = VideoDTO.fromCtxToScene(ctx);
+                VideoDTO dto = VideoDTO.fromCtxToAnime(ctx);
                 log.info("inferRequest: {}", dto);
                 return inferenceService.videoInfer(dto);
             } else if (Objects.equals(function.getType(), "video_solo")) {
